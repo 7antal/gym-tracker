@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>برنامه تمرینی</title>
+<style>
+  :root{
+    --bg:#12141a; --surface:#1c1f26; --surface2:#232733; --border:#2a2e38;
+    --text:#f2f3f5; --text-dim:#9aa1ac; --accent:#4c8dff; --accent-dim:rgba(76,141,255,.15);
+    --main-tag:#ffb13d; --main-tag-dim:rgba(255,177,61,.12);
+    --success:#34c77b; --danger:#ff5c5c; --radius:14px; --radius-sm:10px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans Arabic",Tahoma,sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  body{min-height:100dvh;}
+  #app{display:flex; flex-direction:column; min-height:100dvh;}
+  main{flex:1; overflow-y:auto; padding:18px 16px calc(96px + env(safe-area-inset-bottom));}
+  section{display:none;}
+  section.active{display:block; animation:fadein .18s ease;}
+  @keyframes fadein{from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:none}}
+
+  h1{font-size:22px; font-weight:800; margin:2px 0 4px; letter-spacing:-.01em;}
+  h2{font-size:15px; font-weight:700; color:var(--text-dim); margin:26px 0 10px;}
+  h2:first-child{margin-top:0;}
+  p.lead{color:var(--text-dim); font-size:13.5px; line-height:1.9; margin:0 0 4px;}
+  .meta-line{color:var(--text-dim); font-size:13px; line-height:2;}
+
+  .card{background:var(--surface); border-radius:var(--radius); padding:14px 16px; margin-bottom:12px;
+    border-inline-start:4px solid var(--border);}
+  .card.main{border-inline-start-color:var(--main-tag); background:linear-gradient(180deg,var(--main-tag-dim),var(--surface) 40%);}
+  .ex-head{display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:2px;}
+  .ex-name{font-size:16px; font-weight:700;}
+  .badge{font-size:10.5px; font-weight:700; color:var(--main-tag); background:var(--main-tag-dim);
+    padding:2px 8px; border-radius:999px; white-space:nowrap;}
+  .ex-target{color:var(--text-dim); font-size:12.5px; margin-bottom:10px;}
+  .ex-hint{color:var(--accent); font-size:12px; margin-bottom:10px; direction:ltr; text-align:right;}
+  .ex-alt{color:var(--text-dim); font-size:11.5px; margin-top:8px;}
+
+  .set-row{display:grid; grid-template-columns:34px 1fr 1fr; gap:8px; align-items:center; margin-bottom:6px;}
+  .set-row label{font-size:12px; color:var(--text-dim); text-align:center;}
+  .set-row input{width:100%; font-size:19px; font-weight:700; font-variant-numeric:tabular-nums;
+    text-align:center; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:var(--radius-sm); padding:9px 4px; direction:ltr;}
+  .set-row input:focus{outline:none; border-color:var(--accent);}
+  .set-row input::placeholder{color:#565c69; font-weight:400; font-size:14px;}
+  .col-labels{display:grid; grid-template-columns:34px 1fr 1fr; gap:8px; margin-bottom:4px;}
+  .col-labels span{font-size:11px; color:var(--text-dim); text-align:center;}
+
+  .day-selector{display:flex; background:var(--surface2); border-radius:999px; padding:4px; gap:2px; margin-bottom:16px;}
+  .day-selector button{flex:1; border:none; background:none; color:var(--text-dim); padding:9px 2px;
+    font-size:13px; font-weight:700; border-radius:999px; font-family:inherit;}
+  .day-selector button.active{background:var(--accent); color:#fff;}
+
+  .date-row{display:flex; align-items:center; gap:10px; margin-bottom:16px;}
+  .date-row label{font-size:13px; color:var(--text-dim); white-space:nowrap;}
+  .date-row input{flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text);
+    padding:10px 12px; border-radius:var(--radius-sm); font-size:15px; font-family:inherit;}
+
+  .btn{display:block; width:100%; border:none; border-radius:var(--radius-sm); padding:14px; font-size:15.5px;
+    font-weight:700; font-family:inherit; margin-top:6px; cursor:pointer;}
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-secondary{background:var(--surface2); color:var(--text); border:1px solid var(--border);}
+  .btn-danger{background:rgba(255,92,92,.12); color:var(--danger); border:1px solid rgba(255,92,92,.3);}
+  .btn-file{position:relative; overflow:hidden;}
+  .btn-file input[type=file]{position:absolute; inset:0; opacity:0; cursor:pointer;}
+
+  details{background:var(--surface); border-radius:var(--radius-sm); margin-bottom:8px; overflow:hidden;}
+  summary{padding:12px 14px; font-size:14px; font-weight:600; cursor:pointer; list-style:none; display:flex;
+    justify-content:space-between; align-items:center;}
+  summary::-webkit-details-marker{display:none;}
+  summary .chev{color:var(--text-dim); transition:transform .15s;}
+  details[open] summary .chev{transform:rotate(90deg);}
+  .hist-body{padding:0 14px 12px; font-size:13px; color:var(--text-dim); line-height:2;}
+  .hist-body .hrow{display:flex; justify-content:space-between; border-top:1px solid var(--border); padding:6px 0;}
+  .hist-del{color:var(--danger); font-size:12px; background:none; border:none; padding:4px 8px; font-family:inherit;}
+
+  select{width:100%; background:var(--surface); color:var(--text); border:1px solid var(--border);
+    padding:12px; border-radius:var(--radius-sm); font-size:15px; font-family:inherit; margin-bottom:16px;}
+
+  table.hist-table{width:100%; border-collapse:collapse; font-size:13px; margin-top:14px;}
+  table.hist-table th, table.hist-table td{padding:8px 6px; text-align:center; border-bottom:1px solid var(--border);}
+  table.hist-table th{color:var(--text-dim); font-weight:600; font-size:11.5px;}
+  table.hist-table td{font-variant-numeric:tabular-nums;}
+
+  .empty{color:var(--text-dim); font-size:13.5px; text-align:center; padding:30px 10px; line-height:1.9;}
+
+  .vol-table{width:100%; border-collapse:collapse; font-size:13.5px; margin-bottom:8px;}
+  .vol-table td{padding:9px 4px; border-bottom:1px solid var(--border);}
+  .vol-table td:last-child{text-align:left; color:var(--text-dim); direction:ltr;}
+
+  ol.method-list, ul.method-list{margin:0; padding-inline-start:20px; color:var(--text-dim); font-size:13.5px; line-height:2;}
+
+  .toast{position:fixed; bottom:calc(96px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--success); color:#08240f; font-weight:700; font-size:14px; padding:10px 20px; border-radius:999px;
+    opacity:0; transition:all .25s; pointer-events:none; z-index:50; white-space:nowrap;}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  .bottom-nav{position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--surface);
+    border-top:1px solid var(--border); padding:8px 4px calc(8px + env(safe-area-inset-bottom));}
+  .bottom-nav button{flex:1; background:none; border:none; color:var(--text-dim); display:flex; flex-direction:column;
+    align-items:center; gap:3px; font-size:11px; font-family:inherit; padding:4px;}
+  .bottom-nav button svg{width:22px; height:22px;}
+  .bottom-nav button.active{color:var(--accent);}
+
+  .data-actions{display:flex; flex-direction:column; gap:10px; margin-bottom:24px;}
+  .stat-row{display:flex; gap:10px; margin-bottom:20px;}
+  .stat{flex:1; background:var(--surface); border-radius:var(--radius); padding:14px; text-align:center;}
+  .stat b{display:block; font-size:22px; font-variant-numeric:tabular-nums;}
+  .stat span{font-size:11px; color:var(--text-dim);}
+
+  .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center;
+    justify-content:center; z-index:100; padding:24px;}
+  .modal-box{background:var(--surface); border-radius:var(--radius); padding:20px; max-width:320px; width:100%;}
+  .modal-box p{font-size:14.5px; line-height:1.9; margin:0 0 16px;}
+  .modal-actions{display:flex; gap:10px;}
+  .modal-actions .btn{margin-top:0;}
+</style>
+</head>
+<body>
+<div id="app">
+  <main>
+
+    <!-- ===== HOME ===== -->
+    <section id="tab-home" class="active">
+      <h1>برنامه تمرینی هفتگی</h1>
+      <p class="lead">عضله‌سازی همراه با کاهش چربی</p>
+      <div class="meta-line">
+        سبک طراحی: Evidence-based (نزدیک به روش Eric Helms / 3DMJ)<br>
+        سطح: حدود ۱ سال سابقه، اوایل میان‌رده<br>
+        هدف: Recomposition — عضله‌سازی + کاهش چربی<br>
+        فرکانس: ۴ روز در هفته، حداکثر ۹۰ دقیقه هر جلسه
+      </div>
+
+      <h2>چرا این اسپلیت؟</h2>
+      <p class="lead">با ۴ روز تمرین در هفته، Upper/Lower ×۲ بهترین تعادل بین فرکانس و ریکاوریه — هر گروه عضلانی ۲ بار در هفته تحریک می‌شه. RIR = Reps in Reserve. گرم‌کردن‌ها جزو ست‌های اصلی و حجم هفتگی نیستن.</p>
+
+      <h2>حجم تقریبی هفتگی (ست کاری)</h2>
+      <table class="vol-table" id="vol-table"></table>
+
+      <h2>روش Progressive Overload</h2>
+      <ol class="method-list">
+        <li>برای هر حرکت یه رنج تکرار مشخص داری (مثلاً ۸-۱۰).</li>
+        <li>تا وقتی همه‌ی ست‌ها به سقف رنج نرسیدن، همون وزن رو نگه دار، فقط تکرار اضافه کن.</li>
+        <li>وقتی همه‌ی ست‌های کاری به سقف رنج رسیدن، جلسه بعد وزنه رو کمی بالا ببر (هالتر ~۲.۵kg) و به کف رنج برگرد.</li>
+        <li>برای حرکات اصلی، افزایش تدریجی کوچک هر ۱-۲ هفته طبیعیه — خصوصاً تو کسری کالری.</li>
+      </ol>
+
+      <h2>اگر ۲-۳ هفته پیشرفت نداشتی</h2>
+      <ol class="method-list">
+        <li>ریکاوری رو چک کن: خواب، استرس، پروتئین کافی (~۱.۶-۲.۲ گرم/کیلوگرم)؟</li>
+        <li>وزنه رو ~۵-۱۰٪ کم کن و ۱-۲ هفته دوباره بساز.</li>
+        <li>اگه بازم گیر کردی، ۲-۳ هفته با جایگزین عوضش کن.</li>
+        <li>اگه چند حرکت هم‌زمان گیر کردن، احتمالاً خستگی تجمعیه.</li>
+      </ol>
+
+      <h2>علائم خستگی و زمان Deload</h2>
+      <ul class="method-list">
+        <li>افت عملکرد در چند حرکت، ۲+ جلسه پشت‌سرهم</li>
+        <li>نیاز به گرم‌کردن طولانی‌تر از حد معمول</li>
+        <li>کوفتگی بیش از ۴۸-۷۲ ساعت</li>
+        <li>افت انگیزه، خواب، یا خلق‌وخو</li>
+        <li>هر ۶-۸ هفته یه Deload برنامه‌ریزی‌شده: حجم ~۴۰-۵۰٪ کم، RIR بالاتر (۳-۴)، یک هفته</li>
+      </ul>
+
+      <h2>یک نکته درباره هدف تو</h2>
+      <p class="lead">چون هدف Recomposition است، این برنامه فقط نیمی از کاره — تغذیه (پروتئین کافی، کسری کالری معتدل) به همون اندازه مهمه.</p>
+    </section>
+
+    <!-- ===== LOG ===== -->
+    <section id="tab-log">
+      <h1>ثبت تمرین</h1>
+      <div class="day-selector" id="day-selector"></div>
+      <div class="date-row">
+        <label>تاریخ جلسه</label>
+        <input type="date" id="session-date">
+      </div>
+      <div id="exercise-cards"></div>
+      <button class="btn btn-primary" id="save-session-btn">ذخیره جلسه</button>
+
+      <h2>تاریخچه این روز</h2>
+      <div id="day-history"></div>
+    </section>
+
+    <!-- ===== PROGRESS ===== -->
+    <section id="tab-progress">
+      <h1>پیشرفت</h1>
+      <select id="progress-select"></select>
+      <div id="chart-wrap"></div>
+      <div id="progress-table-wrap"></div>
+    </section>
+
+    <!-- ===== DATA ===== -->
+    <section id="tab-data">
+      <h1>داده‌ها</h1>
+      <div class="stat-row">
+        <div class="stat"><b id="stat-sets">0</b><span>ست ثبت‌شده</span></div>
+        <div class="stat"><b id="stat-sessions">0</b><span>جلسه</span></div>
+      </div>
+
+      <h2>اتصال به Google Sheet</h2>
+      <p class="lead" id="conn-status">وضعیت: تنظیم نشده</p>
+      <div class="date-row">
+        <label style="flex:0 0 auto;">آدرس Script</label>
+        <input type="text" id="script-url-input" placeholder="URL خروجی Apps Script رو اینجا پیست کن" style="direction:ltr; font-size:12px;">
+      </div>
+      <button class="btn btn-secondary" id="save-script-url-btn">ذخیره آدرس و اتصال</button>
+      <button class="btn btn-secondary" id="sync-now-btn">🔄 گرفتن آخرین نسخه از Sheet</button>
+
+      <h2>گزارش فعالیت (برای عیب‌یابی)</h2>
+      <p class="lead">اگه چیزی درست سینک نشد، این لاگ رو کپی کن و بفرست تا دقیقاً ببینم کجای کار گیر کرده.</p>
+      <pre id="debug-log" style="background:var(--surface); border-radius:var(--radius-sm); padding:12px;
+        font-size:11px; line-height:1.8; color:var(--text-dim); white-space:pre-wrap; direction:ltr;
+        text-align:left; max-height:220px; overflow-y:auto; margin:0 0 20px;">هنوز فعالیتی ثبت نشده</pre>
+
+      <h2>بکاپ محلی</h2>
+      <p class="lead">علاوه بر Google Sheet، یه نسخه هم رو همین گوشی نگه داشته می‌شه (برای وقتی آفلاینی). با این حال هر چند وقت یه‌بار بکاپ دستی هم بگیر.</p>
+      <div class="data-actions">
+        <button class="btn btn-secondary" id="export-csv-btn">خروجی CSV (برای اکسل)</button>
+        <button class="btn btn-secondary" id="export-json-btn">بکاپ کامل (JSON)</button>
+        <button class="btn btn-secondary btn-file">
+          بازگردانی از بکاپ (JSON)
+          <input type="file" id="import-json-input" accept="application/json">
+        </button>
+        <button class="btn btn-danger" id="clear-all-btn">پاک کردن همه داده‌ها</button>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <button data-tab="tab-home" class="active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      خانه
+    </button>
+    <button data-tab="tab-log">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="20" cy="18" r="2"/></svg>
+      ثبت
+    </button>
+    <button data-tab="tab-progress">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M3 21h18"/></svg>
+      پیشرفت
+    </button>
+    <button data-tab="tab-data">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+      داده‌ها
+    </button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================= DATA ============================= */
+const PROGRAM = [
+  { key:'day1', title:'روز ۱ — بالاتنه A', subtitle:'تاکید: پرس افقی + کشش افقی',
+    why:'بنچ و پارویی حرکات چندمفصلی اصلی روزن. بقیه، حجم تکمیلی سینه/پشت/سرشانه/بازو اضافه می‌کنن.',
+    exercises:[
+      {name:'پرس سینه هالتر (تخت)', kind:'Main', target:'۴×۵-۶', rir:'۲', rest:'۳ دقیقه', alt:'پرس سینه دمبل تخت / پرس سینه دستگاه', sets:4},
+      {name:'پارویی خم هالتر', kind:'Main', target:'۴×۶-۸', rir:'۲', rest:'۲.۵-۳ دقیقه', alt:'پارویی سیم‌کش نشسته / T-bar row', sets:4},
+      {name:'پرس بالاسینه دمبل', kind:'Accessory', target:'۳×۸-۱۰', rir:'۱-۲', rest:'۹۰ ثانیه', alt:'پرس بالاسینه دستگاه', sets:3},
+      {name:'لت پول‌داون دست باز', kind:'Accessory', target:'۳×۱۰-۱۲', rir:'۱-۲', rest:'۹۰ ثانیه', alt:'بارفیکس با کمک دستگاه', sets:3},
+      {name:'لترال ریز دمبل', kind:'Accessory', target:'۳×۱۲-۱۵', rir:'۰-۱', rest:'۶۰ ثانیه', alt:'لترال ریز سیم‌کش', sets:3},
+      {name:'پشت بازو سیم‌کش', kind:'Accessory', target:'۳×۱۰-۱۲', rir:'۱', rest:'۶۰-۷۵ ثانیه', alt:'پشت بازو دمبل بالای سر', sets:3},
+      {name:'جلو بازو دمبل یا هالتر', kind:'Accessory', target:'۳×۸-۱۰', rir:'۱', rest:'۶۰-۷۵ ثانیه', alt:'جلو بازو سیم‌کش', sets:3},
+    ]},
+  { key:'day2', title:'روز ۲ — پایین‌تنه A', subtitle:'تاکید: اسکوات / کوادریسپس',
+    why:'اسکوات تنها حرکت سنگین روزه و بیشترین تمرکز رو کوادریسپسه. پشت پا/ساق سبک‌تره چون تمرکزشون روز ۴ است.',
+    exercises:[
+      {name:'اسکوات هالتر', kind:'Main', target:'۴×۶-۸', rir:'۲', rest:'۳ دقیقه', alt:'هک اسکوات / لگ پرس', sets:4},
+      {name:'لگ پرس یا بولگارین اسپلیت اسکوات', kind:'Accessory', target:'۳×۱۰-۱۲', rir:'۱-۲', rest:'۹۰ ثانیه', alt:'لانج راه‌رونده', sets:3},
+      {name:'جلو پا دستگاه', kind:'Accessory', target:'۳×۱۲-۱۵', rir:'۰-۱', rest:'۶۰-۷۵ ثانیه', alt:'—', sets:3},
+      {name:'پشت پا (سبک)', kind:'Accessory', target:'۲×۱۲-۱۵', rir:'۱', rest:'۷۵ ثانیه', alt:'گلوت-هم‌ریز', sets:2},
+      {name:'ساق پا نشسته', kind:'Accessory', target:'۳×۱۲-۱۵', rir:'۱', rest:'۶۰ ثانیه', alt:'ساق پا ایستاده', sets:3},
+      {name:'پلانک / Dead Bug', kind:'Accessory', target:'۳×۳۰-۴۵ث', rir:'—', rest:'۴۵ ثانیه', alt:'—', sets:3},
+    ]},
+  { key:'day3', title:'روز ۳ — بالاتنه B', subtitle:'تاکید: پرس عمودی + کشش عمودی',
+    why:'الگوی عمودی مکمل الگوی افقی روز ۱ است — فرکانس دوم هفته برای سینه/پشت/سرشانه/بازو رو کامل می‌کنه.',
+    exercises:[
+      {name:'پرس سرشانه هالتر', kind:'Main', target:'۴×۶-۸', rir:'۲', rest:'۲.۵-۳ دقیقه', alt:'پرس سرشانه دستگاه', sets:4},
+      {name:'بارفیکس وزنه‌دار یا لت پول‌داون دست جمع', kind:'Main', target:'۴×۶-۸', rir:'۲', rest:'۲.۵ دقیقه', alt:'بارفیکس با کمک دستگاه', sets:4},
+      {name:'پرس سینه دستگاه یا دمبل', kind:'Accessory', target:'۳×۸-۱۰', rir:'۱-۲', rest:'۹۰ ثانیه', alt:'—', sets:3},
+      {name:'پارویی سیم‌کش نشسته', kind:'Accessory', target:'۳×۱۰-۱۲', rir:'۱-۲', rest:'۹۰ ثانیه', alt:'پارویی دستگاه', sets:3},
+      {name:'لترال ریز سیم‌کش', kind:'Accessory', target:'۳×۱۲-۱۵', rir:'۰-۱', rest:'۶۰ ثانیه', alt:'—', sets:3},
+      {name:'فیس‌پول یا ریورس فلای', kind:'Accessory', target:'۳×۱۲-۱۵', rir:'۱-۲', rest:'۶۰ ثانیه', alt:'ریورس پک‌دک', sets:3},
+      {name:'پشت بازو دمبل بالای سر', kind:'Accessory', target:'۳×۱۰-۱۲', rir:'۱', rest:'۶۰-۷۵ ثانیه', alt:'پشت بازو سیم‌کش طناب', sets:3},
+    ]},
+  { key:'day4', title:'روز ۴ — پایین‌تنه B', subtitle:'تاکید: هیپ‌هینج / همسترینگ / گلوت',
+    why:'RDL و هیپ تراست الگوی هیپ‌هینج رو پوشش می‌دن و بیشترین تحریک همسترینگ/گلوت هفته اینجاست.',
+    exercises:[
+      {name:'رومانین ددلیفت هالتر', kind:'Main', target:'۴×۶-۸', rir:'۲', rest:'۳ دقیقه', alt:'ددلیفت کانونشنال', sets:4},
+      {name:'هیپ تراست هالتر', kind:'Main', target:'۳×۸-۱۰', rir:'۲', rest:'۲.۵ دقیقه', alt:'گودمورنینگ', sets:3},
+      {name:'پشت پا (سنگین)', kind:'Accessory', target:'۳×۱۰-۱۲', rir:'۱', rest:'۹۰ ثانیه', alt:'ندورد کرل (وزن بدن)', sets:3},
+      {name:'اسکوات گابلت یا لگ پرس سبک', kind:'Accessory', target:'۳×۱۰-۱۲', rir:'۱-۲', rest:'۹۰ ثانیه', alt:'لانج معکوس', sets:3},
+      {name:'ساق پا ایستاده', kind:'Accessory', target:'۴×۸-۱۲', rir:'۱', rest:'۶۰ ثانیه', alt:'ساق پا نشسته', sets:4},
+    ]},
+];
+const VOLUME = [['سینه','~10'],['پشت','~14'],['سرشانه (کل)','~12-13'],['جلو بازو','~6'],
+  ['پشت بازو','~6'],['کوادریسپس','~12-13'],['همسترینگ/گلوت','~9-12'],['ساق پا','~7']];
+
+/* ============================= STATE ============================= */
+const STORAGE_KEY = 'workoutLogData_v1';
+const URL_KEY = 'scriptUrlConfig_v1';
+let SCRIPT_URL = localStorage.getItem(URL_KEY) || '';
+let logs = [];
+try{ logs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }catch(e){ logs = []; }
+
+function cacheLocally(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(logs)); }
+  catch(e){ toast('ذخیره محلی ناموفق بود'); }
+}
+let lastConnState = 'unknown';
+let lastConnExtra = '';
+let debugLog = [];
+function logDebug(msg){
+  const t = new Date().toLocaleTimeString('en-GB');
+  debugLog.unshift(`[${t}] ${msg}`);
+  debugLog = debugLog.slice(0, 12);
+  const el = document.getElementById('debug-log');
+  if(el) el.textContent = debugLog.join('\n');
+}
+function setConnStatus(state, extra){
+  if(state) lastConnState = state;
+  if(extra !== undefined) lastConnExtra = extra;
+  const el = document.getElementById('conn-status');
+  if(!el) return;
+  if(!SCRIPT_URL){ el.textContent = 'وضعیت: تنظیم نشده — آدرس Script رو پیست کن'; return; }
+  if(lastConnState==='online') el.textContent = 'وضعیت: متصل ✅' + (lastConnExtra?(' — '+lastConnExtra):'');
+  else if(lastConnState==='offline') el.textContent = 'وضعیت: آفلاین ⚠️ (فقط رو گوشی ذخیره شد، بعداً سینک می‌شه)';
+  else if(lastConnState==='connecting') el.textContent = 'وضعیت: در حال اتصال...';
+  else el.textContent = 'وضعیت: هنوز تست نشده — «گرفتن آخرین نسخه» رو بزن';
+}
+let opChain = Promise.resolve();
+function queueOp(fn){
+  opChain = opChain.then(fn, fn);
+  return opChain;
+}
+async function syncFromServer(){ return queueOp(doSyncFromServer); }
+async function doSyncFromServer(){
+  if(!SCRIPT_URL) { setConnStatus(); return; }
+  setConnStatus('connecting');
+  logDebug('pull start');
+  try{
+    const fetchPromise = fetch(SCRIPT_URL);
+    const timeoutPromise = new Promise((_,reject)=> setTimeout(()=>reject(new Error('timeout')), 8000));
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    if(!res.ok) throw new Error('bad status ' + res.status);
+    const serverLogs = await res.json();
+    logs = serverLogs.map(r=>({date:String(r.date).slice(0,10), day:r.day, exercise:r.exercise,
+      setNum:Number(r.setNum), weight:Number(r.weight), reps:Number(r.reps)}));
+    cacheLocally();
+    logDebug(`pull OK: ${logs.length} rows received`);
+    setConnStatus('online', 'آخرین داده گرفته شد');
+    renderLogTab(); renderDataStats();
+  }catch(e){
+    logDebug('pull FAILED: ' + e.message);
+    setConnStatus('offline');
+  }
+}
+async function pushToServer(){ return queueOp(doPushToServer); }
+async function doPushToServer(){
+  if(!SCRIPT_URL){ logDebug('push skipped: no SCRIPT_URL set'); return; }
+  const payload = JSON.stringify(logs);
+  const expectedCount = logs.length;
+  logDebug(`push start (${expectedCount} rows, ${payload.length} bytes)`);
+
+  async function sendViaFetch(){
+    const fetchPromise = fetch(SCRIPT_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: payload
+    });
+    const timeoutPromise = new Promise((_,reject)=> setTimeout(()=>reject(new Error('timeout')), 8000));
+    await Promise.race([fetchPromise, timeoutPromise]);
+  }
+
+  let sent = false;
+  if(navigator.sendBeacon){
+    try{
+      const blob = new Blob([payload], {type:'text/plain;charset=utf-8'});
+      sent = navigator.sendBeacon(SCRIPT_URL, blob);
+      logDebug(sent ? 'sendBeacon queued the request' : 'sendBeacon returned false, will use fetch');
+    }catch(e){
+      logDebug('sendBeacon threw: ' + e.message + ', will use fetch');
+    }
+  } else {
+    logDebug('sendBeacon not available, using fetch');
+  }
+  if(!sent){
+    try{ await sendViaFetch(); logDebug('push sent via fetch'); }
+    catch(e){ logDebug('push FAILED (fetch): ' + e.message); setConnStatus('offline'); return; }
+  }
+
+  // Don't trust the transport's self-reported success - actually read the data back
+  // and confirm the row count matches what we just sent.
+  await new Promise(r=>setTimeout(r, 1500));
+  try{
+    const verifyPromise = fetch(SCRIPT_URL);
+    const timeoutPromise = new Promise((_,reject)=> setTimeout(()=>reject(new Error('timeout')), 8000));
+    const res = await Promise.race([verifyPromise, timeoutPromise]);
+    if(!res.ok) throw new Error('bad status ' + res.status);
+    const serverRows = await res.json();
+    if(serverRows.length === expectedCount){
+      logDebug(`verified OK: sheet has ${serverRows.length} rows`);
+      setConnStatus('online', 'تایید شد');
+    } else {
+      logDebug(`MISMATCH: sheet has ${serverRows.length}, expected ${expectedCount} - retrying via fetch`);
+      await sendViaFetch();
+      logDebug('retry sent via fetch');
+      setConnStatus('offline', 'نامطمئن — گزارش رو بفرست');
+    }
+  }catch(e){
+    logDebug('verify read FAILED: ' + e.message);
+    setConnStatus('offline');
+  }
+}
+function persistLocal(){
+  cacheLocally();
+  pushToServer();
+}
+let currentDay = 'day1';
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(d){
+  const dt = new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+function dayByKey(k){ return PROGRAM.find(d=>d.key===k); }
+function customConfirm(message){
+  return new Promise(resolve=>{
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal-box">
+      <p>${message}</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" style="flex:1;" data-act="cancel">لغو</button>
+        <button class="btn btn-danger" style="flex:1;" data-act="ok">تایید</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e)=>{
+      if(e.target === overlay){ overlay.remove(); resolve(false); return; }
+      const act = e.target.closest('[data-act]');
+      if(!act) return;
+      overlay.remove();
+      resolve(act.dataset.act === 'ok');
+    });
+  });
+}
+
+/* ============================= NAV ============================= */
+document.querySelectorAll('.bottom-nav button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.bottom-nav button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('main section').forEach(s=>s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab === 'tab-progress') renderProgressOptions();
+    if(btn.dataset.tab === 'tab-data') renderDataStats();
+  });
+});
+
+/* ============================= HOME ============================= */
+(function renderVolTable(){
+  const t = document.getElementById('vol-table');
+  VOLUME.forEach(([m,s])=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${m}</td><td>${s}</td>`;
+    t.appendChild(tr);
+  });
+})();
+
+/* ============================= LOG TAB ============================= */
+const daySelector = document.getElementById('day-selector');
+const persianNum = ['۱','۲','۳','۴'];
+PROGRAM.forEach((d,idx)=>{
+  const b = document.createElement('button');
+  b.textContent = 'روز' + persianNum[idx];
+  b.dataset.day = d.key;
+  if(d.key===currentDay) b.classList.add('active');
+  b.addEventListener('click', ()=>{ currentDay = d.key; renderLogTab(); });
+  daySelector.appendChild(b);
+});
+document.getElementById('session-date').value = todayStr();
+document.getElementById('session-date').addEventListener('change', renderExerciseCards);
+
+function getPriorEntry(exerciseName, beforeDate){
+  const rows = logs.filter(l=>l.exercise===exerciseName && l.date < beforeDate);
+  if(!rows.length) return null;
+  const latestDate = rows.reduce((a,b)=> b.date > a ? b.date : a, rows[0].date);
+  return {date:latestDate, sets: rows.filter(r=>r.date===latestDate)};
+}
+
+function renderExerciseCards(){
+  const day = dayByKey(currentDay);
+  const date = document.getElementById('session-date').value || todayStr();
+  const wrap = document.getElementById('exercise-cards');
+  wrap.innerHTML = '';
+  day.exercises.forEach((ex, exIdx)=>{
+    const card = document.createElement('div');
+    card.className = 'card' + (ex.kind==='Main' ? ' main' : '');
+    const nSets = ex.sets || 3;
+
+    const existing = logs.filter(l=>l.date===date && l.day===currentDay && l.exercise===ex.name);
+    const last = getPriorEntry(ex.name, date);
+
+    let hintHtml = '';
+    if(last && last.sets && last.sets.length){
+      const parts = last.sets.sort((a,b)=>a.setNum-b.setNum)
+        .map(s=>`ست${s.setNum}: ${s.weight}×${s.reps}`).join('  |  ');
+      hintHtml = `<div class="ex-hint">آخرین بار (${fmtDate(last.date)}): ${parts}</div>`;
+    }
+
+    let rowsHtml = `<div class="col-labels"><span></span><span>وزن (kg)</span><span>تکرار</span></div>`;
+    for(let s=1; s<=Math.max(nSets,2); s++){
+      const ent = existing.find(e=>e.setNum===s);
+      rowsHtml += `<div class="set-row">
+        <label>ست${s}</label>
+        <input type="number" inputmode="decimal" step="0.5" data-ex="${exIdx}" data-set="${s}" data-field="weight" value="${ent?ent.weight:''}" placeholder="—">
+        <input type="number" inputmode="numeric" step="1" data-ex="${exIdx}" data-set="${s}" data-field="reps" value="${ent?ent.reps:''}" placeholder="—">
+      </div>`;
+    }
+
+    card.innerHTML = `
+      <div class="ex-head">
+        <span class="ex-name">${ex.name}</span>
+        ${ex.kind==='Main' ? '<span class="badge">Main</span>' : ''}
+      </div>
+      <div class="ex-target">${ex.target} @RIR ${ex.rir} · استراحت ${ex.rest}</div>
+      ${hintHtml}
+      ${rowsHtml}
+      ${ex.alt && ex.alt!=='—' ? `<div class="ex-alt">جایگزین: ${ex.alt}</div>` : ''}
+    `;
+    wrap.appendChild(card);
+  });
+}
+
+document.getElementById('save-session-btn').addEventListener('click', ()=>{
+  const day = dayByKey(currentDay);
+  const date = document.getElementById('session-date').value || todayStr();
+  // remove existing entries for this date+day (we're overwriting with current form state)
+  logs = logs.filter(l=>!(l.date===date && l.day===currentDay));
+  let count = 0;
+  day.exercises.forEach((ex, exIdx)=>{
+    document.querySelectorAll(`#exercise-cards input[data-ex="${exIdx}"][data-field="weight"]`).forEach(wInput=>{
+      const setNum = parseInt(wInput.dataset.set);
+      const rInput = document.querySelector(`#exercise-cards input[data-ex="${exIdx}"][data-set="${setNum}"][data-field="reps"]`);
+      const w = parseFloat(wInput.value), r = parseInt(rInput.value);
+      if(!isNaN(w) && !isNaN(r) && w>0 && r>0){
+        logs.push({date, day:currentDay, exercise:ex.name, setNum, weight:w, reps:r});
+        count++;
+      }
+    });
+  });
+  persistLocal();
+  toast(count ? `${count} ست ذخیره شد` : 'چیزی برای ذخیره نبود');
+  renderDayHistory();
+  renderExerciseCards();
+});
+
+function renderDayHistory(){
+  const wrap = document.getElementById('day-history');
+  wrap.innerHTML = '';
+  const dates = [...new Set(logs.filter(l=>l.day===currentDay).map(l=>l.date))].sort().reverse();
+  if(!dates.length){ wrap.innerHTML = '<div class="empty">هنوز جلسه‌ای برای این روز ثبت نشده</div>'; return; }
+  dates.forEach(date=>{
+    const rows = logs.filter(l=>l.day===currentDay && l.date===date);
+    const byEx = {};
+    rows.forEach(r=>{ (byEx[r.exercise] = byEx[r.exercise]||[]).push(r); });
+    const det = document.createElement('details');
+    const body = Object.entries(byEx).map(([ex,sets])=>{
+      const setsTxt = sets.sort((a,b)=>a.setNum-b.setNum).map(s=>`${s.weight}×${s.reps}`).join('، ');
+      return `<div class="hrow"><span>${ex}</span><span>${setsTxt}</span></div>`;
+    }).join('');
+    det.innerHTML = `<summary>${fmtDate(date)} <span class="chev">›</span></summary>
+      <div class="hist-body">${body}
+        <button class="hist-del" data-del-date="${date}">حذف این جلسه</button>
+      </div>`;
+    wrap.appendChild(det);
+  });
+  wrap.querySelectorAll('[data-del-date]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const ok = await customConfirm('این جلسه پاک بشه؟');
+      if(ok){
+        logs = logs.filter(l=>!(l.day===currentDay && l.date===b.dataset.delDate));
+        persistLocal(); renderDayHistory(); renderExerciseCards();
+      }
+    });
+  });
+}
+
+function renderLogTab(){
+  document.querySelectorAll('#day-selector button').forEach(b=>b.classList.toggle('active', b.dataset.day===currentDay));
+  renderExerciseCards();
+  renderDayHistory();
+}
+renderLogTab();
+syncFromServer();
+
+/* ============================= PROGRESS TAB ============================= */
+function renderProgressOptions(){
+  const sel = document.getElementById('progress-select');
+  if(sel.dataset.built) { renderProgressChart(sel.value); return; }
+  PROGRAM.forEach(day=>{
+    const og = document.createElement('optgroup');
+    og.label = day.title;
+    day.exercises.forEach(ex=>{
+      const o = document.createElement('option');
+      o.value = ex.name; o.textContent = ex.name;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  });
+  sel.dataset.built = '1';
+  sel.addEventListener('change', ()=>renderProgressChart(sel.value));
+  renderProgressChart(sel.value);
+}
+
+function renderProgressChart(exerciseName){
+  const rows = logs.filter(l=>l.exercise===exerciseName);
+  const byDate = {};
+  rows.forEach(r=>{ byDate[r.date] = Math.max(byDate[r.date]||0, r.weight); });
+  const points = Object.entries(byDate).sort((a,b)=>a[0]<b[0]?-1:1);
+
+  const chartWrap = document.getElementById('chart-wrap');
+  const tableWrap = document.getElementById('progress-table-wrap');
+  if(!points.length){
+    chartWrap.innerHTML = '';
+    tableWrap.innerHTML = '<div class="empty">هنوز داده‌ای برای این حرکت ثبت نشده</div>';
+    return;
+  }
+  const W = 320, H = 160, PAD = 28;
+  const weights = points.map(p=>p[1]);
+  const minW = Math.min(...weights), maxW = Math.max(...weights);
+  const range = (maxW - minW) || 1;
+  const x = i => PAD + (points.length===1 ? (W-2*PAD)/2 : i*(W-2*PAD)/(points.length-1));
+  const y = v => H - PAD - ((v-minW)/range)*(H-2*PAD);
+  const path = points.map((p,i)=> (i===0?'M':'L') + x(i).toFixed(1) + ',' + y(p[1]).toFixed(1)).join(' ');
+  const dots = points.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p[1]).toFixed(1)}" r="3.5" fill="#4c8dff"/>`).join('');
+
+  chartWrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto; background:#1c1f26; border-radius:14px;">
+    <path d="${path}" fill="none" stroke="#4c8dff" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${dots}
+    <text x="${PAD}" y="14" fill="#9aa1ac" font-size="11">${maxW}</text>
+    <text x="${PAD}" y="${H-PAD+16}" fill="#9aa1ac" font-size="11">${minW}</text>
+  </svg>`;
+
+  let rowsHtml = points.slice().reverse().map(([date,w])=>{
+    const dayEntries = rows.filter(r=>r.date===date).sort((a,b)=>a.setNum-b.setNum);
+    const reps = dayEntries.find(e=>e.weight===w);
+    return `<tr><td>${fmtDate(date)}</td><td>${w}</td><td>${reps?reps.reps:'-'}</td></tr>`;
+  }).join('');
+  tableWrap.innerHTML = `<table class="hist-table">
+    <tr><th>تاریخ</th><th>وزن ست کاری</th><th>تکرار</th></tr>${rowsHtml}</table>`;
+}
+
+/* ============================= DATA TAB ============================= */
+function renderDataStats(){
+  document.getElementById('stat-sets').textContent = logs.length;
+  document.getElementById('stat-sessions').textContent = new Set(logs.map(l=>l.date+l.day)).size;
+  document.getElementById('script-url-input').value = SCRIPT_URL;
+  setConnStatus();
+}
+document.getElementById('save-script-url-btn').addEventListener('click', ()=>{
+  const val = document.getElementById('script-url-input').value.trim();
+  if(!val){ toast('آدرس رو وارد کن'); return; }
+  SCRIPT_URL = val;
+  localStorage.setItem(URL_KEY, val);
+  toast('آدرس ذخیره شد، در حال اتصال...');
+  syncFromServer();
+});
+document.getElementById('sync-now-btn').addEventListener('click', ()=>{
+  if(!SCRIPT_URL){ toast('اول آدرس Script رو ذخیره کن'); return; }
+  syncFromServer();
+});
+
+document.getElementById('export-csv-btn').addEventListener('click', ()=>{
+  if(!logs.length){ toast('هنوز داده‌ای نیست'); return; }
+  const dayLabel = k => 'روز' + k.slice(3);
+  let csv = 'تاریخ,روز,حرکت,شماره ست,وزن (kg),تکرار\n';
+  logs.slice().sort((a,b)=>a.date<b.date?-1:1).forEach(l=>{
+    csv += `${l.date},${dayLabel(l.day)},"${l.exercise}",${l.setNum},${l.weight},${l.reps}\n`;
+  });
+  downloadBlob(csv, 'text/csv;charset=utf-8;', `workout-log-${todayStr()}.csv`);
+  toast('CSV دانلود شد');
+});
+document.getElementById('export-json-btn').addEventListener('click', ()=>{
+  downloadBlob(JSON.stringify(logs, null, 2), 'application/json', `workout-backup-${todayStr()}.json`);
+  toast('بکاپ دانلود شد');
+});
+document.getElementById('import-json-input').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const imported = JSON.parse(reader.result);
+      if(!Array.isArray(imported)) throw new Error('bad format');
+      const key = r => [r.date,r.day,r.exercise,r.setNum].join('|');
+      const map = new Map(logs.map(r=>[key(r), r]));
+      imported.forEach(r=> map.set(key(r), r));
+      logs = [...map.values()];
+      persistLocal();
+      toast(`${imported.length} ردیف بازگردانی شد`);
+      renderLogTab(); renderDataStats();
+    }catch(err){ toast('فایل بکاپ معتبر نیست'); }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+document.getElementById('clear-all-btn').addEventListener('click', async ()=>{
+  const ok = await customConfirm('همه‌ی داده‌های ثبت‌شده پاک بشه؟ این کار برگشت‌ناپذیره.');
+  if(ok){
+    logs = []; persistLocal(); renderLogTab(); renderDataStats();
+    toast('همه چیز پاک شد');
+  }
+});
+function downloadBlob(content, type, filename){
+  const blob = new Blob([content], {type});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
