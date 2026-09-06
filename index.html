@@ -336,16 +336,26 @@ function queueOp(fn){
   opChain = opChain.then(fn, fn);
   return opChain;
 }
+function buildUrl(params){
+  const url = new URL(SCRIPT_URL);
+  Object.entries(params).forEach(([k,v])=> url.searchParams.set(k, String(v)));
+  return url.toString();
+}
+async function fetchWithTimeout(url, ms){
+  const fetchPromise = fetch(url);
+  const timeoutPromise = new Promise((_,reject)=> setTimeout(()=>reject(new Error('timeout')), ms||8000));
+  const res = await Promise.race([fetchPromise, timeoutPromise]);
+  if(!res.ok) throw new Error('bad status ' + res.status);
+  return res;
+}
+
 async function syncFromServer(){ return queueOp(doSyncFromServer); }
 async function doSyncFromServer(){
   if(!SCRIPT_URL) { setConnStatus(); return; }
   setConnStatus('connecting');
   logDebug('pull start');
   try{
-    const fetchPromise = fetch(SCRIPT_URL);
-    const timeoutPromise = new Promise((_,reject)=> setTimeout(()=>reject(new Error('timeout')), 8000));
-    const res = await Promise.race([fetchPromise, timeoutPromise]);
-    if(!res.ok) throw new Error('bad status ' + res.status);
+    const res = await fetchWithTimeout(SCRIPT_URL);
     const serverLogs = await res.json();
     logs = serverLogs.map(r=>({date:String(r.date).slice(0,10), day:r.day, exercise:r.exercise,
       setNum:Number(r.setNum), weight:Number(r.weight), reps:Number(r.reps)}));
@@ -358,66 +368,67 @@ async function doSyncFromServer(){
     setConnStatus('offline');
   }
 }
-async function pushToServer(){ return queueOp(doPushToServer); }
-async function doPushToServer(){
-  if(!SCRIPT_URL){ logDebug('push skipped: no SCRIPT_URL set'); return; }
-  const payload = JSON.stringify(logs);
-  const expectedCount = logs.length;
-  logDebug(`push start (${expectedCount} rows, ${payload.length} bytes)`);
 
-  async function sendViaFetch(){
-    const fetchPromise = fetch(SCRIPT_URL, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: payload
-    });
-    const timeoutPromise = new Promise((_,reject)=> setTimeout(()=>reject(new Error('timeout')), 8000));
-    await Promise.race([fetchPromise, timeoutPromise]);
-  }
-
-  let sent = false;
-  if(navigator.sendBeacon){
-    try{
-      const blob = new Blob([payload], {type:'text/plain;charset=utf-8'});
-      sent = navigator.sendBeacon(SCRIPT_URL, blob);
-      logDebug(sent ? 'sendBeacon queued the request' : 'sendBeacon returned false, will use fetch');
-    }catch(e){
-      logDebug('sendBeacon threw: ' + e.message + ', will use fetch');
-    }
-  } else {
-    logDebug('sendBeacon not available, using fetch');
-  }
-  if(!sent){
-    try{ await sendViaFetch(); logDebug('push sent via fetch'); }
-    catch(e){ logDebug('push FAILED (fetch): ' + e.message); setConnStatus('offline'); return; }
-  }
-
-  // Don't trust the transport's self-reported success - actually read the data back
-  // and confirm the row count matches what we just sent.
-  await new Promise(r=>setTimeout(r, 1500));
-  try{
-    const verifyPromise = fetch(SCRIPT_URL);
-    const timeoutPromise = new Promise((_,reject)=> setTimeout(()=>reject(new Error('timeout')), 8000));
-    const res = await Promise.race([verifyPromise, timeoutPromise]);
-    if(!res.ok) throw new Error('bad status ' + res.status);
-    const serverRows = await res.json();
-    if(serverRows.length === expectedCount){
-      logDebug(`verified OK: sheet has ${serverRows.length} rows`);
-      setConnStatus('online', 'تایید شد');
-    } else {
-      logDebug(`MISMATCH: sheet has ${serverRows.length}, expected ${expectedCount} - retrying via fetch`);
-      await sendViaFetch();
-      logDebug('retry sent via fetch');
-      setConnStatus('offline', 'نامطمئن — گزارش رو بفرست');
-    }
-  }catch(e){
-    logDebug('verify read FAILED: ' + e.message);
-    setConnStatus('offline');
-  }
+// Writes go through GET (with query params), never POST: Apps Script Web Apps redirect
+// on request, and browsers silently convert a redirected POST into a GET - which means
+// doPost never actually runs. GET survives the redirect untouched, so this is the
+// mechanism that's actually reliable here.
+async function appendRowToServer(entry){
+  const url = buildUrl({action:'append', date:entry.date, day:entry.day, exercise:entry.exercise,
+    setNum:entry.setNum, weight:entry.weight, reps:entry.reps});
+  await fetchWithTimeout(url);
 }
-function persistLocal(){
-  cacheLocally();
-  pushToServer();
+async function deleteSessionOnServer(date, day){
+  const url = buildUrl({action:'deleteSession', date, day});
+  await fetchWithTimeout(url);
+}
+async function replaceAllOnServer(entries){
+  const url = buildUrl({action:'replaceAll', data: JSON.stringify(entries)});
+  await fetchWithTimeout(url, 15000);
+}
+
+async function syncSaveSession(date, day, entries){
+  return queueOp(async () => {
+    if(!SCRIPT_URL){ logDebug('save skipped: no SCRIPT_URL set'); return; }
+    logDebug(`save start (${entries.length} rows for ${day} ${date})`);
+    try{
+      await deleteSessionOnServer(date, day); // clear any old rows for this date+day first
+      for(const entry of entries){ await appendRowToServer(entry); }
+      logDebug('save OK: all rows written');
+      setConnStatus('online', 'ذخیره شد');
+    }catch(e){
+      logDebug('save FAILED: ' + e.message);
+      setConnStatus('offline');
+    }
+  });
+}
+async function syncDeleteSession(date, day){
+  return queueOp(async () => {
+    if(!SCRIPT_URL){ logDebug('delete skipped: no SCRIPT_URL set'); return; }
+    logDebug(`delete start (${day} ${date})`);
+    try{
+      await deleteSessionOnServer(date, day);
+      logDebug('delete OK');
+      setConnStatus('online', 'حذف شد');
+    }catch(e){
+      logDebug('delete FAILED: ' + e.message);
+      setConnStatus('offline');
+    }
+  });
+}
+async function syncReplaceAll(entries){
+  return queueOp(async () => {
+    if(!SCRIPT_URL){ logDebug('replace skipped: no SCRIPT_URL set'); return; }
+    logDebug(`replaceAll start (${entries.length} rows)`);
+    try{
+      await replaceAllOnServer(entries);
+      logDebug('replaceAll OK');
+      setConnStatus('online', 'همگام شد');
+    }catch(e){
+      logDebug('replaceAll FAILED: ' + e.message);
+      setConnStatus('offline');
+    }
+  });
 }
 let currentDay = 'day1';
 
@@ -547,20 +558,22 @@ document.getElementById('save-session-btn').addEventListener('click', ()=>{
   const date = document.getElementById('session-date').value || todayStr();
   // remove existing entries for this date+day (we're overwriting with current form state)
   logs = logs.filter(l=>!(l.date===date && l.day===currentDay));
-  let count = 0;
+  const newEntries = [];
   day.exercises.forEach((ex, exIdx)=>{
     document.querySelectorAll(`#exercise-cards input[data-ex="${exIdx}"][data-field="weight"]`).forEach(wInput=>{
       const setNum = parseInt(wInput.dataset.set);
       const rInput = document.querySelector(`#exercise-cards input[data-ex="${exIdx}"][data-set="${setNum}"][data-field="reps"]`);
       const w = parseFloat(wInput.value), r = parseInt(rInput.value);
       if(!isNaN(w) && !isNaN(r) && w>0 && r>0){
-        logs.push({date, day:currentDay, exercise:ex.name, setNum, weight:w, reps:r});
-        count++;
+        const entry = {date, day:currentDay, exercise:ex.name, setNum, weight:w, reps:r};
+        logs.push(entry);
+        newEntries.push(entry);
       }
     });
   });
-  persistLocal();
-  toast(count ? `${count} ست ذخیره شد` : 'چیزی برای ذخیره نبود');
+  cacheLocally();
+  syncSaveSession(date, currentDay, newEntries);
+  toast(newEntries.length ? `${newEntries.length} ست ذخیره شد` : 'چیزی برای ذخیره نبود');
   renderDayHistory();
   renderExerciseCards();
 });
@@ -589,8 +602,11 @@ function renderDayHistory(){
     b.addEventListener('click', async ()=>{
       const ok = await customConfirm('این جلسه پاک بشه؟');
       if(ok){
-        logs = logs.filter(l=>!(l.day===currentDay && l.date===b.dataset.delDate));
-        persistLocal(); renderDayHistory(); renderExerciseCards();
+        const delDate = b.dataset.delDate;
+        logs = logs.filter(l=>!(l.day===currentDay && l.date===delDate));
+        cacheLocally();
+        syncDeleteSession(delDate, currentDay);
+        renderDayHistory(); renderExerciseCards();
       }
     });
   });
@@ -707,7 +723,8 @@ document.getElementById('import-json-input').addEventListener('change', (e)=>{
       const map = new Map(logs.map(r=>[key(r), r]));
       imported.forEach(r=> map.set(key(r), r));
       logs = [...map.values()];
-      persistLocal();
+      cacheLocally();
+      syncReplaceAll(logs);
       toast(`${imported.length} ردیف بازگردانی شد`);
       renderLogTab(); renderDataStats();
     }catch(err){ toast('فایل بکاپ معتبر نیست'); }
@@ -718,7 +735,10 @@ document.getElementById('import-json-input').addEventListener('change', (e)=>{
 document.getElementById('clear-all-btn').addEventListener('click', async ()=>{
   const ok = await customConfirm('همه‌ی داده‌های ثبت‌شده پاک بشه؟ این کار برگشت‌ناپذیره.');
   if(ok){
-    logs = []; persistLocal(); renderLogTab(); renderDataStats();
+    logs = [];
+    cacheLocally();
+    syncReplaceAll(logs);
+    renderLogTab(); renderDataStats();
     toast('همه چیز پاک شد');
   }
 });
