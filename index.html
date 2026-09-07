@@ -480,54 +480,75 @@ function fmtTimer(sec){
   const m = Math.floor(sec/60), s = sec%60;
   return `${m}:${String(s).padStart(2,'0')}`;
 }
-function playBeep(){
+
+// AudioContext can only be created/resumed as a direct result of a user gesture on
+// mobile Safari - doing it inside a setInterval callback (not a gesture) gets silently
+// blocked, which is why the beep never played. We unlock it once, on the actual tap
+// that starts a timer, and reuse that same context for every beep afterward.
+let audioCtx = null;
+function ensureAudioUnlocked(){
   try{
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new Ctx();
-    const osc = ctx.createOscillator(), gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.frequency.value = 880;
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.35);
-    osc.onended = () => ctx.close();
-  }catch(e){ /* audio not available - vibration still fires */ }
+    if(!audioCtx){
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new Ctx();
+    }
+    if(audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+  }catch(e){ /* Web Audio not available on this device */ }
 }
-let timerState = null; // {remaining, label, intervalId}
+function playBeep(){
+  if(!audioCtx) return;
+  try{
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.35);
+  }catch(e){}
+}
+
+// timerState tracks a real end timestamp (not a tick counter), so if setInterval gets
+// throttled while the tab/app is backgrounded, we self-correct to the true remaining
+// time the instant we check again - instead of silently drifting.
+let timerState = null; // {endTime, label, intervalId, completed}
 function updateTimerButtonStates(){
   document.querySelectorAll('.rest-timer-btn').forEach(btn=>{
-    btn.classList.toggle('active', !!(timerState && btn.dataset.exName === timerState.label));
+    btn.classList.toggle('active', !!(timerState && !timerState.completed && btn.dataset.exName === timerState.label));
   });
 }
 function startRestTimer(seconds, label){
   stopRestTimer();
+  ensureAudioUnlocked(); // must happen synchronously within this click handler to work
   const bar = document.getElementById('floating-timer');
   const timeEl = document.getElementById('ft-time');
   const labelEl = document.getElementById('ft-label');
   bar.classList.remove('done');
   labelEl.textContent = label;
-  let remaining = seconds;
-  timeEl.textContent = fmtTimer(remaining);
+  timeEl.textContent = fmtTimer(seconds);
   bar.classList.add('show');
-  timerState = { remaining, label, intervalId: null };
-  timerState.intervalId = setInterval(()=>{
-    remaining--;
-    if(timerState) timerState.remaining = remaining;
-    if(remaining <= 0){
-      clearInterval(timerState.intervalId);
-      timeEl.textContent = '0:00';
-      bar.classList.add('done');
-      if(navigator.vibrate) navigator.vibrate([200,100,200]);
-      playBeep();
-      const finishedLabel = timerState.label;
-      timerState = null;
-      updateTimerButtonStates();
-      setTimeout(()=>{ if(labelEl.textContent === finishedLabel) bar.classList.remove('show'); }, 2500);
-      return;
-    }
-    timeEl.textContent = fmtTimer(remaining);
-  }, 1000);
+  timerState = { endTime: Date.now() + seconds*1000, label, intervalId: null, completed: false };
+  timerState.intervalId = setInterval(tickRestTimer, 1000);
   updateTimerButtonStates();
+}
+function tickRestTimer(){
+  if(!timerState || timerState.completed) return;
+  const remaining = Math.max(0, Math.round((timerState.endTime - Date.now()) / 1000));
+  if(remaining <= 0){ completeRestTimer(); return; }
+  document.getElementById('ft-time').textContent = fmtTimer(remaining);
+}
+function completeRestTimer(){
+  if(!timerState || timerState.completed) return;
+  timerState.completed = true;
+  clearInterval(timerState.intervalId);
+  const bar = document.getElementById('floating-timer');
+  const labelEl = document.getElementById('ft-label');
+  document.getElementById('ft-time').textContent = '0:00';
+  bar.classList.add('done');
+  if(navigator.vibrate) navigator.vibrate([200,100,200]);
+  playBeep();
+  updateTimerButtonStates();
+  const finishedLabel = timerState.label;
+  setTimeout(()=>{ if(labelEl.textContent === finishedLabel){ bar.classList.remove('show'); timerState = null; } }, 2500);
 }
 function stopRestTimer(){
   if(timerState && timerState.intervalId) clearInterval(timerState.intervalId);
@@ -536,6 +557,14 @@ function stopRestTimer(){
   updateTimerButtonStates();
 }
 document.getElementById('ft-cancel').addEventListener('click', stopRestTimer);
+// The moment the app/tab becomes visible again (user switched back from another app),
+// immediately recompute against the real clock and fire the alert if it already elapsed
+// while backgrounded - this is the best catch-up guarantee possible without a push server.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible' && timerState && !timerState.completed){
+    tickRestTimer();
+  }
+});
 function customConfirm(message){
   return new Promise(resolve=>{
     const overlay = document.createElement('div');
@@ -653,7 +682,7 @@ function renderExerciseCards(){
     btn.addEventListener('click', ()=>{
       const seconds = parseInt(btn.dataset.seconds, 10);
       const name = btn.dataset.exName;
-      if(timerState && timerState.label === name) stopRestTimer();
+      if(timerState && !timerState.completed && timerState.label === name) stopRestTimer();
       else startRestTimer(seconds, name);
     });
   });
