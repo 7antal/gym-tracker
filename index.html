@@ -498,12 +498,22 @@ function ensureAudioUnlocked(){
 function playBeep(){
   if(!audioCtx) return;
   try{
-    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
-    osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.frequency.value = 880;
-    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.35);
+    const tone = (freq, startOffset, dur, vol) => {
+      const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.frequency.value = freq;
+      const t0 = audioCtx.currentTime + startOffset;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(vol, t0 + 0.02);
+      gain.gain.linearRampToValueAtTime(0, t0 + dur);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.02);
+    };
+    // classic alarm: two alternating tones, twice
+    tone(750, 0,    0.15, 0.2);
+    tone(950, 0.18, 0.15, 0.2);
+    tone(750, 0.36, 0.15, 0.2);
+    tone(950, 0.54, 0.15, 0.2);
   }catch(e){}
 }
 
