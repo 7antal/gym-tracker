@@ -46,12 +46,6 @@
     border-radius:var(--radius-sm); padding:9px 4px; direction:ltr;}
   .set-row input:focus{outline:none; border-color:var(--accent);}
   .set-row input::placeholder{color:#565c69; font-weight:400; font-size:14px;}
-  .weight-stepper{display:flex; align-items:stretch; gap:4px; direction:ltr;}
-  .weight-stepper input{border-radius:var(--radius-sm);}
-  .step-btn{flex:0 0 30px; background:var(--surface2); border:1px solid var(--border); color:var(--text-dim);
-    border-radius:var(--radius-sm); font-size:17px; font-weight:700; font-family:inherit; line-height:1;
-    padding:0;}
-  .step-btn:active{background:var(--accent-dim); color:var(--accent); border-color:var(--accent);}
   .col-labels{display:grid; grid-template-columns:34px 1fr 1fr; gap:8px; margin-bottom:4px;}
   .col-labels span{font-size:11px; color:var(--text-dim); text-align:center;}
 
@@ -669,15 +663,9 @@ function renderExerciseCards(){
     let rowsHtml = `<div class="col-labels"><span></span><span>وزن (kg)</span><span>تکرار</span></div>`;
     for(let s=1; s<=Math.max(nSets,2); s++){
       const ent = existing.find(e=>e.setNum===s);
-      const lastForSet = last && last.sets && last.sets.find(ls=>ls.setNum===s);
-      const lastWeight = lastForSet ? lastForSet.weight : 0;
       rowsHtml += `<div class="set-row">
         <label>ست${s}</label>
-        <div class="weight-stepper">
-          <button type="button" class="step-btn" data-ex="${exIdx}" data-set="${s}" data-delta="-2.5" aria-label="کم کردن وزن">−</button>
-          <input type="number" inputmode="decimal" step="0.5" data-ex="${exIdx}" data-set="${s}" data-field="weight" data-last="${lastWeight}" value="${ent?ent.weight:''}" placeholder="—">
-          <button type="button" class="step-btn" data-ex="${exIdx}" data-set="${s}" data-delta="2.5" aria-label="زیاد کردن وزن">+</button>
-        </div>
+        <input type="number" inputmode="decimal" step="0.5" data-ex="${exIdx}" data-set="${s}" data-field="weight" value="${ent?ent.weight:''}" placeholder="—">
         <input type="number" inputmode="numeric" step="1" data-ex="${exIdx}" data-set="${s}" data-field="reps" value="${ent?ent.reps:''}" placeholder="—">
       </div>`;
     }
@@ -708,23 +696,7 @@ function renderExerciseCards(){
       else startRestTimer(seconds, name);
     });
   });
-  wrap.querySelectorAll('.step-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> stepWeight(btn));
-  });
   updateTimerButtonStates();
-}
-
-// Steps the weight input by ±2.5kg (or a custom data-delta). Rounds to 2 decimals so
-// repeated taps on fractional values (e.g. 42.5, 1.25 plates) never drift from float
-// error, and seeds from last session's weight when the field is still empty.
-function stepWeight(btn){
-  const exIdx = btn.dataset.ex, setNum = btn.dataset.set, delta = parseFloat(btn.dataset.delta);
-  const input = document.querySelector(`#exercise-cards input[data-ex="${exIdx}"][data-set="${setNum}"][data-field="weight"]`);
-  if(!input) return;
-  const current = parseFloat(input.value);
-  const base = isNaN(current) ? (parseFloat(input.dataset.last) || 0) : current;
-  const next = Math.max(0, Math.round((base + delta) * 100) / 100);
-  input.value = next;
 }
 
 document.getElementById('save-session-btn').addEventListener('click', ()=>{
